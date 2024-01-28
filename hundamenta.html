@@ -92,8 +92,16 @@
   const squareSize = 25;
   const numSquaresX = canvas.width / squareSize;
   const numSquaresY = canvas.height / squareSize;
+
+  const items = {
+    TRIPLE_SHOT: 'tripleShot',
+    LARGER_BALL: 'largerBall'
+  };
+
   let squares = [];
 
+
+  // ステージの配列を作成する
   for (let i = 0; i < numSquaresX; i++) {
     squares[i] = [];
     for (let j = 0; j < numSquaresY; j++) {
@@ -101,16 +109,18 @@
     }
   }
 
-  let x1 = canvas.width / 4;
-  let y1 = canvas.height / 2;
-  let dx1 = 8;
-  let dy1 = 8;
+  let balls = [
+    { x: canvas.width / 2, y: canvas.height / 2, dx: 8, dy: 8, color: TEAM1_BALL, team: TEAM1 },
+    { x: canvas.width / 2, y: canvas.height / 2, dx: -8, dy: -8, color: TEAM2_BALL, team: TEAM2 },
+    // 初期ボールのデータ
+  ];
 
-  let x2 = (canvas.width / 4) * 3;
-  let y2 = canvas.height / 2;
-  let dx2 = -8;
-  let dy2 = -8;
+  // 新しいボールを追加する関数
+  function addBall(x, y, dx, dy, ballColor, teamColor) {
+    balls.push({ x, y, dx, dy, color: ballColor, team: teamColor });
+  }
 
+  //ボールを描画する関数
   function drawBall(x, y, color) {
     ctx.beginPath();
     ctx.arc(x, y, squareSize / 2, 0, Math.PI * 2, false);
@@ -119,6 +129,24 @@
     ctx.closePath();
   }
 
+  function generateRandomItem() {
+    const randomItem = Math.random() < 0.5 ? items.TRIPLE_SHOT : items.LARGER_BALL;
+    applyItemEffect(randomItem);
+  }
+
+  function applyItemEffect(item) {
+    switch (item) {
+      case items.TRIPLE_SHOT:
+        // 弾が3発放出される効果を適用
+        break;
+      case items.LARGER_BALL:
+        // 弾のサイズが大きくなる効果を適用
+        break;
+    }
+  }
+
+
+  // ステージを描画する関数
   function drawSquares() {
     for (let i = 0; i < numSquaresX; i++) {
       for (let j = 0; j < numSquaresY; j++) {
@@ -128,10 +156,13 @@
     }
   }
 
+  // ランダムな数値を返す関数
   function randomNum(min, max) {
     return Math.random() * (max - min) + min;
   }
 
+  // バウンドした時にステージの配列を更新する関数
+  // バウンドした時にボールの向きを変える関数
   function updateSquareAndBounce(x, y, dx, dy, color) {
     let updatedDx = dx;
     let updatedDy = dy;
@@ -147,6 +178,11 @@
       if (i >= 0 && i < numSquaresX && j >= 0 && j < numSquaresY) {
         if (squares[i][j] !== color) {
           squares[i][j] = color;
+
+          // ブロックの色が変更された場合、ランダムにアイテムを生成
+          if (Math.random() < 0.03) { // 10% の確率でアイテムを生成
+            generateRandomItem();
+          }
 
           // Determine bounce direction based on the angle
           if (Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))) {
@@ -164,6 +200,7 @@
     return { dx: updatedDx, dy: updatedDy };
   }
 
+  // バウンドした時にボールの向きを変える関数
   function updateEdgeBounce(x, y, dx, dy) {
     if (
       x + dx > canvas.width - squareSize / 2 ||
@@ -181,6 +218,7 @@
     return { dx: dx, dy: dy };
   }
 
+  // スコアを更新する関数
   function updateScoreElement() {
     let team1Score = 0;
     let team2Score = 0;
@@ -197,40 +235,63 @@
     scoreElement.textContent = `day ${team1Score} | night ${team2Score}`;
   }
 
+  function generateRandomItem() {
+    const randomItem = Math.random() < 0.5 ? items.TRIPLE_SHOT : items.LARGER_BALL;
+    applyItemEffect(randomItem);
+  }
+
+  function applyItemEffect(item) {
+    switch (item) {
+      case items.TRIPLE_SHOT:
+        //for (let ball_number = 0; ball_number < 3; ball_number++) {
+        let ball_team = randomNum(0, 1);
+        addBall(
+          randomNum(0, canvas.width),
+          randomNum(0, canvas.height),
+          randomNum(-8, 8),
+          randomNum(-8, 8),
+          ball_team > 0.5 ? TEAM1_BALL : TEAM2_BALL,
+          ball_team > 0.5 ? TEAM1 : TEAM2
+        );
+        //}
+
+        break;
+      case items.LARGER_BALL:
+        // 弾のサイズが大きくなる効果を適用
+        break;
+    }
+  }
+
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawSquares();
 
-    drawBall(x1, y1, TEAM1_BALL);
-    let bounce1 = updateSquareAndBounce(x1, y1, dx1, dy1, TEAM1);
-    dx1 = bounce1.dx;
-    dy1 = bounce1.dy;
+    // 全てのボールに対して描画と更新を行う
+    balls.forEach(ball => {
+      drawBall(ball.x, ball.y, ball.color);
+      let bounce = updateSquareAndBounce(ball.x, ball.y, ball.dx, ball.dy, ball.team);
+      ball.dx = bounce.dx;
+      ball.dy = bounce.dy;
 
-    drawBall(x2, y2, TEAM2_BALL);
-    let bounce2 = updateSquareAndBounce(x2, y2, dx2, dy2, TEAM2);
-    dx2 = bounce2.dx;
-    dy2 = bounce2.dy;
+      let edgeBounce = updateEdgeBounce(ball.x, ball.y, ball.dx, ball.dy);
+      ball.dx = edgeBounce.dx;
+      ball.dy = edgeBounce.dy;
+
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+    });
 
     updateScoreElement();
-
-    let edgebounce1 = updateEdgeBounce(x1, y1, dx1, dy1);
-    dx1 = edgebounce1.dx;
-    dy1 = edgebounce1.dy;
-
-    let edgebounce2 = updateEdgeBounce(x2, y2, dx2, dy2);
-    dx2 = edgebounce2.dx;
-    dy2 = edgebounce2.dy;
-
-
-    x1 += dx1;
-    y1 += dy1;
-    x2 += dx2;
-    y2 += dy2;
-
     requestAnimationFrame(draw);
   }
 
   requestAnimationFrame(draw);
+
+  // 新しいボールを追加する例
+  addBall((canvas.width / 4) * 3, (canvas.height / 8), -8, -8, TEAM2_BALL, TEAM2);
+  addBall((canvas.width / 4) * 3, (canvas.height / 8) * 2, -8, -8, TEAM1_BALL, TEAM1);
+
 </script>
 
 </html>
