@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Pong wars | Koen van Gilst</title>
+    <link rel="canonical" href="https://pong-wars.koenvangilst.nl/" />
+    <style>
+        html {
+            height: 100%;
+        }
+
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, #172b36 0%, #d9e8e3 100%);
+        }
+
+        #container {
+            display: flex;
+            width: 100%;
+            max-width: 750px;
+            align-items: center;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        #pongCanvas {
+            display: block;
+            border-radius: 4px;
+            overflow: hidden;
+            width: 100%;
+            margin-top: auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+
+        #score {
+            font-family: monospace;
+            margin-top: 30px;
+            font-size: 20px;
+            padding-left: 20px;
+            color: #172b36;
+        }
+
+        #made {
+            font-family: monospace;
+            margin-top: auto;
+            margin-bottom: 20px;
+            font-size: 12px;
+            padding-left: 20px;
+        }
+
+        #made a {
+            color: #172b36;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <canvas id="pongCanvas" width="800" height="800"></canvas>
+        <div id="score"></div>
+        <div id="number_of_ball"></div>
+    </div>
+</body>
+
+<script>
+    // Source palette: https://twitter.com/AlexCristache/status/1738610343499157872
+    const colorPalette = {
+        ArcticPowder: "#F1F6F4",
+        MysticMint: "#D9E8E3",
+        Forsythia: "#FFC801",
+        DeepSaffron: "#FF9932",
+        NocturnalExpedition: "#114C5A",
+        OceanicNoir: "#172B36",
+    };
+
+    // Idea for Pong wars: https://twitter.com/nicolasdnl/status/1749715070928433161
+
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreElement = document.getElementById("score");
+    const number_of_ball = document.getElementById("number_of_ball");
+
+    const TEAM1 = colorPalette.MysticMint;
+    const TEAM1_BALL = colorPalette.NocturnalExpedition;
+
+    const TEAM2 = colorPalette.NocturnalExpedition;
+    const TEAM2_BALL = colorPalette.MysticMint;
+
+    const squareSize = 25;
+    const MAX_SPEED = 16;   // Example maximum speed
+    const MAX_DIAMETER = 100; // Example maximum diameter
+    const numSquaresX = canvas.width / squareSize;
+    const numSquaresY = canvas.height / squareSize;
+
+
+    const items = {
+        TRIPLE_SHOT: 'tripleShot',
+        LARGER_BALL: 'largerBall',
+        SPEED_UP: 'speedUp',
+        DELETE_BALL: 'deleteBall',
+    };
+
+    let squares = [];
+
+
+    // ステージの配列を作成する
+    for (let i = 0; i < numSquaresX; i++) {
+        squares[i] = [];
+        for (let j = 0; j < numSquaresY; j++) {
+            squares[i][j] = i < numSquaresX / 2 ? TEAM1 : TEAM2;
+        }
+    }
+
+    let balls = [
+        { x: canvas.width / 2, y: canvas.height / 2, dx: 8, dy: 8, color: TEAM1_BALL, team: TEAM1, diameter: squareSize },
+        { x: canvas.width / 2, y: canvas.height / 2, dx: -8, dy: -8, color: TEAM2_BALL, team: TEAM2, diameter: squareSize },
+        // 初期ボールのデータ
+    ];
+
+    // 新しいボールを追加する関数
+    function addBall(x, y, dx, dy, ballColor, teamColor, diameter) {
+        balls.push({ x, y, dx, dy, color: ballColor, team: teamColor, diameter });
+    }
+
+    //ボールを描画する関数
+    function drawBall(x, y, color, diameter) {
+        ctx.beginPath();
+        ctx.arc(x, y, diameter / 2, 0, Math.PI * 2, false);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+
+
+    // ステージを描画する関数
+    function drawSquares() {
+        for (let i = 0; i < numSquaresX; i++) {
+            for (let j = 0; j < numSquaresY; j++) {
+                ctx.fillStyle = squares[i][j];
+                ctx.fillRect(i * squareSize, j * squareSize, squareSize, squareSize);
+            }
+        }
+    }
+
+    // ランダムな数値を返す関数
+    function randomNum(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    // バウンドした時にステージの配列を更新する関数
+    // バウンドした時にボールの向きを変える関数
+    function updateSquareAndBounce(x, y, dx, dy, color) {
+        let updatedDx = dx;
+        let updatedDy = dy;
+
+        // Check multiple points around the ball's circumference
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+            let checkX = x + Math.cos(angle) * (squareSize / 2);
+            let checkY = y + Math.sin(angle) * (squareSize / 2);
+
+            let i = Math.floor(checkX / squareSize);
+            let j = Math.floor(checkY / squareSize);
+
+            if (i >= 0 && i < numSquaresX && j >= 0 && j < numSquaresY) {
+                if (squares[i][j] !== color) {
+                    squares[i][j] = color;
+
+                    // ブロックの色が変更された場合、ランダムにアイテムを生成
+                    if (Math.random() < 0.05) { // 10% の確率でアイテムを生成
+                        generateRandomItem(color);
+                    }
+
+                    // Determine bounce direction based on the angle
+                    if (Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle))) {
+                        updatedDx = -updatedDx;
+                    } else {
+                        updatedDy = -updatedDy;
+                    }
+
+                    updatedDx += randomNum(-0.15, 0.15);
+                    updatedDy += randomNum(-0.15, 0.15);
+                }
+            }
+        }
+
+        return { dx: updatedDx, dy: updatedDy };
+    }
+
+    // バウンドした時にボールの向きを変える関数
+    function updateEdgeBounce(x, y, dx, dy) {
+        if (
+            x + dx > canvas.width - squareSize / 2 ||
+            x + dx < squareSize / 2
+        ) {
+            dx = -dx;
+        }
+        if (
+            y + dy > canvas.height - squareSize / 2 ||
+            y + dy < squareSize / 2
+        ) {
+            dy = -dy;
+        }
+
+        return { dx: dx, dy: dy };
+    }
+
+    // スコアを更新する関数
+    function updateScoreElement() {
+        team1Score = 0;
+        team2Score = 0;
+        for (let i = 0; i < numSquaresX; i++) {
+            for (let j = 0; j < numSquaresY; j++) {
+                if (squares[i][j] === TEAM1) {
+                    team1Score++;
+                } else if (squares[i][j] === TEAM2) {
+                    team2Score++;
+                }
+            }
+        }
+
+        scoreElement.textContent = `day ${team1Score} | night ${team2Score}`;
+    }
+
+    let team1NumberOfBall = 0;
+    let team2NumberOfBall = 0;
+
+    function updateNumberOfBall() {
+        team1NumberOfBall = 0;
+        team2NumberOfBall = 0;
+
+        for (let i = 0; i < balls.length; i++) {
+            if (balls[i].team === TEAM1) {
+                team1NumberOfBall++;
+            } else if (balls[i].team === TEAM2) {
+                team2NumberOfBall++;
+            }
+        }
+        number_of_ball.textContent = `day ${team1NumberOfBall} | night ${team2NumberOfBall}`;
+    }
+
+    function generateRandomItem(color) {
+        const randomValue = Math.random();
+        let randomItem;
+        switch (color) {
+            case TEAM1:
+                if (team2NumberOfBall < 20) {
+                    if (randomValue < 0.3) {
+                        randomItem = items.TRIPLE_SHOT;
+                    } else if (randomValue < 0.6) {
+                        randomItem = items.LARGER_BALL;
+                    } else if (randomValue < 0.9) {
+                        randomItem = items.SPEED_UP;
+                    } else {
+                        randomItem = items.DELETE_BALL;
+                    }
+                }
+
+                else if (team2NumberOfBall >= 20) {
+                    if (randomValue < 0.50) {
+                        randomItem = items.TRIPLE_SHOT;
+                    } else {
+                        randomItem = items.DELETE_BALL;
+                    }
+                }
+
+                break;
+            case TEAM2:
+                if (team1NumberOfBall < 20) {
+                    if (randomValue < 0.3) {
+                        randomItem = items.TRIPLE_SHOT;
+                    } else if (randomValue < 0.6) {
+                        randomItem = items.LARGER_BALL;
+                    } else if (randomValue < 0.9) {
+                        randomItem = items.SPEED_UP;
+                    } else {
+                        randomItem = items.DELETE_BALL;
+                    }
+                }
+
+                else if (team1NumberOfBall >= 20) {
+                    if (randomValue < 0.50) {
+                        randomItem = items.TRIPLE_SHOT;
+                    } else {
+                        randomItem = items.DELETE_BALL;
+                    }
+                }
+                break;
+        }
+
+        applyItemEffect(randomItem, color);
+    }
+
+    function applyItemEffect(item, color) {
+        switch (item) {
+            case items.TRIPLE_SHOT:
+                // 弾が1発放出される効果を適用
+                //for (let ball_number = 0; ball_number < 3; ball_number++) {
+                addBall(
+                    randomNum(0, canvas.width),
+                    randomNum(0, canvas.height),
+                    randomNum(-8, 8),
+                    randomNum(-8, 8),
+                    color == TEAM1 ? TEAM1_BALL : TEAM2_BALL,
+                    color == TEAM1 ? TEAM1 : TEAM2,
+                    squareSize
+                );
+                //}
+
+                break;
+            case items.LARGER_BALL:
+                // 弾のサイズが大きくなる効果を適用
+                balls.forEach(ball => {
+                    if (ball.team == color) {
+                        ball.diameter = Math.min(ball.diameter * 1.1, MAX_DIAMETER);
+                    }
+                });
+
+                break;
+            case items.SPEED_UP:
+                // 弾のスピードが速くなる効果を適用
+                balls.forEach(ball => {
+                    ball.dx = Math.min(ball.dx * 1.1, MAX_SPEED);
+                    ball.dy = Math.min(ball.dy * 1.1, MAX_SPEED);
+                });
+
+                break;
+
+            case items.DELETE_BALL:
+                // ボールを削除する効果を適用
+                const index = balls.findIndex(ball => ball.color === color);
+                if (index !== -1) {
+                    balls.splice(index, 1);
+                }
+                break;
+        }
+    }
+
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawSquares();
+
+        // 全てのボールに対して描画と更新を行う
+        balls.forEach(ball => {
+            drawBall(ball.x, ball.y, ball.color, ball.diameter);
+            let bounce = updateSquareAndBounce(ball.x, ball.y, ball.dx, ball.dy, ball.team);
+            ball.dx = bounce.dx;
+            ball.dy = bounce.dy;
+
+            let edgeBounce = updateEdgeBounce(ball.x, ball.y, ball.dx, ball.dy);
+            ball.dx = edgeBounce.dx;
+            ball.dy = edgeBounce.dy;
+
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+        });
+
+        updateScoreElement();
+        updateNumberOfBall();
+        requestAnimationFrame(draw);
+    }
+
+    requestAnimationFrame(draw);
+
+    // 新しいボールを追加する例
+    addBall((canvas.width / 4) * 3, (canvas.height / 8), -8, -8, TEAM2_BALL, TEAM2, squareSize);
+    addBall((canvas.width / 4) * 3, (canvas.height / 8) * 2, -8, -8, TEAM1_BALL, TEAM1, squareSize);
+    for (let ball_number = 0; ball_number < 10; ball_number++) {
+        const color = Math.random() < 0.5 ? TEAM1 : TEAM2;
+        addBall(
+            randomNum(0, canvas.width),
+            randomNum(0, canvas.height),
+            randomNum(-8, 8),
+            randomNum(-8, 8),
+            color == TEAM1 ? TEAM1_BALL : TEAM2_BALL,
+            color == TEAM1 ? TEAM1 : TEAM2,
+            squareSize
+        );
+    }
+
+</script>
+
+</html>

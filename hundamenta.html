@@ -226,11 +226,11 @@
     const randomValue = Math.random();
     let randomItem;
 
-    if (randomValue < 0.26) {
+    if (randomValue < 0.27) {
       randomItem = items.TRIPLE_SHOT;
-    } else if (randomValue < 0.52) {
+    } else if (randomValue < 0.54) {
       randomItem = items.LARGER_BALL;
-    } else if (randomValue < 0.78) {
+    } else if (randomValue < 0.81) {
       randomItem = items.SPEED_UP;
     } else {
       randomItem = items.DELETE_BALL;
@@ -260,7 +260,7 @@
         // 弾のサイズが大きくなる効果を適用
         balls.forEach(ball => {
           if (ball.team == color) {
-            ball.diameter = ball.diameter * 1.1;
+            ball.diameter = ball.diameter * 1.15;
           }
         });
 
